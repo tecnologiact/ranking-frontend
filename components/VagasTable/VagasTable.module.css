@@ -1,0 +1,13 @@
+.wrapper { display: flex; flex-direction: column; gap: 14px; }
+.filters { display: flex; gap: 10px; }
+.search { flex: 1; }
+.select {
+  padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; outline: none;
+}
+.tableWrap { overflow-x: auto; }
+.row { cursor: pointer; }
+.empty { text-align: center; padding: 32px; color: var(--color-text-muted); font-size: 0.9rem; }
+.badgeSuficientes { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: rgba(34,197,94,0.15); color: var(--color-success); }
+.badgeAtencao { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: rgba(234,179,8,0.15); color: var(--color-warning); }
+.badgePoucos { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: rgba(239,68,68,0.15); color: var(--color-danger); }
