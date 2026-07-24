@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   listarUploads,
-  uploadExcel,
-  limparUpload,
-  getRegras,
-  enviarChat,
+  uploadArquivo,
+  deletarUpload,
+  obterRegras,
+  enviarMensagemChat,
   rodarRanking,
 } from "@/lib/api";
 import { useToast } from "@/lib/useToast";
 import UploadArea from "@/components/UploadArea/UploadArea";
-import VagasTable from "@/components/VagasTable/VagasTable";
 import ChatPanel from "@/components/ChatPanel/ChatPanel";
 
 export default function ProcessoPage({ params }) {
-  const { slug } = use(params);
+  const { slug } = params;
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -58,7 +58,8 @@ export default function ProcessoPage({ params }) {
 
   useEffect(() => {
     if (!activeUpload) return;
-    getRegras(slug, activeUpload.id || activeUpload.upload_id)
+    const uploadId = activeUpload.id || activeUpload.upload_id;
+    obterRegras(slug, uploadId)
       .then((data) => {
         const r = Array.isArray(data) ? data : data?.regras || [];
         setRegras(r);
@@ -70,7 +71,7 @@ export default function ProcessoPage({ params }) {
   async function handleUpload(file) {
     try {
       setUploading(true);
-      const result = await uploadExcel(slug, file);
+      const result = await uploadArquivo(slug, file);
       addToast("Arquivo enviado com sucesso!", "success");
       setActiveUpload(result);
       if (result.vagas) setVagas(result.vagas);
@@ -85,9 +86,12 @@ export default function ProcessoPage({ params }) {
   async function handleDeleteUpload(uploadId) {
     if (!confirm("Excluir este upload?")) return;
     try {
-      await limparUpload(uploadId);
+      await deletarUpload(uploadId);
       addToast("Upload excluido.", "success");
-      if (activeUpload && (activeUpload.id === uploadId || activeUpload.upload_id === uploadId)) {
+      if (
+        activeUpload &&
+        (activeUpload.id === uploadId || activeUpload.upload_id === uploadId)
+      ) {
         setActiveUpload(null);
         setMessages([]);
         setChatId(null);
@@ -105,18 +109,28 @@ export default function ProcessoPage({ params }) {
     setMessages((prev) => [...prev, { role: "user", content: mensagem }]);
     try {
       setChatLoading(true);
-      const res = await enviarChat(slug, mensagem, chatId, uploadId);
+      const res = await enviarMensagemChat(slug, {
+        mensagem,
+        chat_id: chatId,
+        upload_id: uploadId,
+      });
       if (res?.chat_id) setChatId(res.chat_id);
       const resposta =
         res?.resposta || res?.mensagem || res?.message || res?.content || "";
-      setMessages((prev) => [...prev, { role: "assistant", content: resposta }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: resposta },
+      ]);
       if (res?.regras) setRegras(res.regras);
       if (res?.vagas) setVagas(res.vagas);
     } catch (err) {
       addToast(err.message, "error");
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Desculpe, ocorreu um erro ao processar sua mensagem." },
+        {
+          role: "assistant",
+          content: "Desculpe, ocorreu um erro ao processar sua mensagem.",
+        },
       ]);
     } finally {
       setChatLoading(false);
@@ -150,52 +164,111 @@ export default function ProcessoPage({ params }) {
   if (!activeUpload) {
     return (
       <div>
-        <h1 style={{ fontSize: "1.3rem", marginBottom: 20 }}>
-          Processo: <span style={{ color: "var(--color-primary)" }}>{slug}</span>
+        <button
+          className="btn btn-sm"
+          onClick={() => router.push("/")}
+          style={{ marginBottom: 16 }}
+        >
+          &larr; Voltar aos processos
+        </button>
+
+        <h1 style={{ fontSize: "1.3rem", marginBottom: 6 }}>
+          Processo:{" "}
+          <span style={{ color: "#EE222B" }}>{slug}</span>
         </h1>
+        <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: 20 }}>
+          Faça upload da planilha de candidatos (.xlsx, .xls ou .csv) para iniciar a configuração do ranking.
+        </p>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 24, fontSize: "0.8rem" }}>
+          {["Upload da planilha", "Configurar regras", "Executar ranking", "Exportar relatório"].map((step, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: i === 0 ? "#EE222B" : "#e0e0e0",
+                color: i === 0 ? "#fff" : "#888",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 600, fontSize: "0.8rem", flexShrink: 0,
+              }}>{i + 1}</div>
+              <span style={{ marginLeft: 6, color: i === 0 ? "#333" : "#aaa", whiteSpace: "nowrap" }}>{step}</span>
+              {i < 3 && <div style={{ flex: 1, height: 1, background: "#e0e0e0", margin: "0 8px" }} />}
+            </div>
+          ))}
+        </div>
 
         <UploadArea onUpload={handleUpload} isLoading={uploading} />
 
         {uploads.length > 0 && (
           <div style={{ marginTop: 28 }}>
-            <h2 style={{ fontSize: "1rem", marginBottom: 12, color: "var(--color-text-muted)" }}>
+            <h2
+              style={{
+                fontSize: "1rem",
+                marginBottom: 12,
+                color: "#666",
+              }}
+            >
               Uploads anteriores
             </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
               {uploads.map((u) => {
                 const uid = u.id || u.upload_id;
                 return (
                   <div
                     key={uid}
-                    className="panel"
                     style={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
                       padding: "12px 16px",
+                      background: "#fff",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: 10,
                     }}
                   >
                     <div>
                       <span style={{ fontWeight: 500, marginRight: 12 }}>
                         {u.filename || u.nome || uid}
                       </span>
-                      <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-                        {u.created_at ? new Date(u.created_at).toLocaleString("pt-BR") : ""}
+                      <span style={{ fontSize: "0.8rem", color: "#999" }}>
+                        {u.created_at
+                          ? new Date(u.created_at).toLocaleString("pt-BR")
+                          : ""}
                       </span>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
-                        className="btn btn-primary btn-sm"
                         onClick={() => {
                           setActiveUpload(u);
                           if (u.vagas) setVagas(u.vagas);
+                        }}
+                        style={{
+                          padding: "6px 14px",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          border: "none",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          background: "#EE222B",
+                          color: "#fff",
                         }}
                       >
                         Continuar
                       </button>
                       <button
-                        className="btn btn-danger btn-sm"
                         onClick={() => handleDeleteUpload(uid)}
+                        style={{
+                          padding: "6px 14px",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          border: "1px solid #ccc",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          background: "#fff",
+                          color: "#333",
+                        }}
                       >
                         Excluir
                       </button>
@@ -215,6 +288,23 @@ export default function ProcessoPage({ params }) {
 
   return (
     <div>
+      {/* Step indicator - step 2 active */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 20, fontSize: "0.8rem" }}>
+        {["Upload da planilha", "Configurar regras", "Executar ranking", "Exportar relatório"].map((step, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: "50%",
+              background: i <= 1 ? "#EE222B" : "#e0e0e0",
+              color: i <= 1 ? "#fff" : "#888",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 600, fontSize: "0.8rem", flexShrink: 0,
+            }}>{i === 0 ? "✓" : i + 1}</div>
+            <span style={{ marginLeft: 6, color: i <= 1 ? "#333" : "#aaa", whiteSpace: "nowrap" }}>{step}</span>
+            {i < 3 && <div style={{ flex: 1, height: 1, background: i < 1 ? "#EE222B" : "#e0e0e0", margin: "0 8px" }} />}
+          </div>
+        ))}
+      </div>
+
       <div
         style={{
           display: "flex",
@@ -225,28 +315,31 @@ export default function ProcessoPage({ params }) {
       >
         <div>
           <h1 style={{ fontSize: "1.3rem" }}>
-            Processo: <span style={{ color: "var(--color-primary)" }}>{slug}</span>
+            Processo:{" "}
+            <span style={{ color: "#EE222B" }}>{slug}</span>
           </h1>
-          <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+          <span style={{ fontSize: "0.8rem", color: "#999" }}>
             Arquivo: {activeUpload.filename || activeUpload.nome || uploadId}
           </span>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button
-            className="btn btn-primary"
-            onClick={handleRanking}
-            disabled={rankingLoading}
-          >
-            {rankingLoading ? "Executando..." : "Executar ranking"}
-          </button>
-          <button
-            className="btn btn-sm"
             onClick={() => {
               setActiveUpload(null);
               setMessages([]);
               setChatId(null);
               setRegras([]);
               setVagas([]);
+            }}
+            style={{
+              padding: "8px 16px",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              border: "1px solid #ccc",
+              borderRadius: 8,
+              cursor: "pointer",
+              background: "#fff",
+              color: "#333",
             }}
           >
             Trocar arquivo
@@ -255,15 +348,167 @@ export default function ProcessoPage({ params }) {
       </div>
 
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-        <div style={{ flex: "0 0 55%", minWidth: 0 }}>
-          <VagasTable
-            vagas={vagas}
-            onSelectVaga={(v) => {
-              router.push(`/processos/${slug}/resultado/${uploadId}?vaga=${encodeURIComponent(v.vaga || v.nome)}`);
+        {/* Left: Summary panel */}
+        <div style={{ flex: "0 0 38%", minWidth: 0 }}>
+          <h3 style={{ fontSize: "0.85rem", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Resumo da configuração
+          </h3>
+
+          {/* Upload info card */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e5e5e7",
+            borderRadius: 10,
+            padding: "16px 18px",
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+              Arquivo carregado
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: "1.2rem" }}>&#128196;</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                  {activeUpload.filename || activeUpload.nome || "Planilha"}
+                </div>
+                {activeUpload.created_at && (
+                  <div style={{ fontSize: "0.75rem", color: "#999" }}>
+                    {new Date(activeUpload.created_at).toLocaleString("pt-BR")}
+                  </div>
+                )}
+              </div>
+            </div>
+            {(activeUpload.total_candidatos || activeUpload.total_vagas) && (
+              <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                {activeUpload.total_candidatos != null && (
+                  <div style={{
+                    flex: 1, textAlign: "center", padding: "8px 0",
+                    background: "#f7f7f8", borderRadius: 8,
+                  }}>
+                    <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>{activeUpload.total_candidatos}</div>
+                    <div style={{ fontSize: "0.7rem", color: "#888" }}>candidatos</div>
+                  </div>
+                )}
+                {activeUpload.total_vagas != null && (
+                  <div style={{
+                    flex: 1, textAlign: "center", padding: "8px 0",
+                    background: "#f7f7f8", borderRadius: 8,
+                  }}>
+                    <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>{activeUpload.total_vagas}</div>
+                    <div style={{ fontSize: "0.7rem", color: "#888" }}>vagas</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Rules configured */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e5e5e7",
+            borderRadius: 10,
+            padding: "16px 18px",
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+              Regras definidas
+            </div>
+            {regras.length === 0 ? (
+              <div style={{ fontSize: "0.82rem", color: "#aaa", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 6px" }}>Nenhuma regra configurada ainda.</p>
+                <p style={{ margin: 0 }}>Use o chat ao lado para definir os pesos e cotas do processo. Exemplos:</p>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "#999", fontSize: "0.78rem" }}>
+                  <li>"Definir cota de gênero mínima de 4"</li>
+                  <li>"50% mulheres em cada vaga"</li>
+                  <li>"Cota de localidade 30%"</li>
+                </ul>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {regras.map((r, i) => {
+                  const texto = typeof r === "string" ? r : r.descricao || r.regra || "";
+                  const chave = typeof r === "object" && !r.descricao ? Object.entries(r).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "";
+                  return (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 12px",
+                      background: "#f0faf0",
+                      border: "1px solid #d0e8d0",
+                      borderRadius: 8,
+                      fontSize: "0.82rem",
+                    }}>
+                      <span style={{ color: "#00a85c", fontWeight: 700 }}>&#10003;</span>
+                      <span style={{ color: "#2a5a2a" }}>{texto || chave || JSON.stringify(r)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Readiness checklist */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e5e5e7",
+            borderRadius: 10,
+            padding: "16px 18px",
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+              Checklist para executar
+            </div>
+            {[
+              { label: "Planilha carregada", done: true },
+              { label: "Regras de distribuição definidas", done: regras.length > 0 },
+              { label: "Pronto para gerar 3 cenários", done: regras.length > 0 },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 0",
+                fontSize: "0.82rem",
+                color: item.done ? "#333" : "#aaa",
+              }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: "50%",
+                  background: item.done ? "#00a85c" : "#e5e5e7",
+                  color: item.done ? "#fff" : "#bbb",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "0.7rem", fontWeight: 700, flexShrink: 0,
+                }}>
+                  {item.done ? "✓" : i + 1}
+                </span>
+                <span style={{ textDecoration: item.done ? "none" : "none" }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Execute CTA - prominent when ready */}
+          <button
+            onClick={handleRanking}
+            disabled={rankingLoading || regras.length === 0}
+            style={{
+              width: "100%",
+              padding: "14px 20px",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 10,
+              cursor: rankingLoading || regras.length === 0 ? "not-allowed" : "pointer",
+              background: regras.length > 0 ? "#EE222B" : "#e0e0e0",
+              color: regras.length > 0 ? "#fff" : "#999",
+              opacity: rankingLoading ? 0.6 : 1,
+              transition: "all 0.2s",
             }}
-          />
+          >
+            {rankingLoading ? "Gerando cenários..." : regras.length > 0 ? "Executar ranking (3 cenários)" : "Configure as regras para executar"}
+          </button>
         </div>
-        <div style={{ flex: "0 0 45%", minWidth: 0 }}>
+
+        {/* Right: Chat */}
+        <div style={{ flex: "0 0 60%", minWidth: 0 }}>
+          <h3 style={{ fontSize: "0.85rem", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Chat de configuração
+          </h3>
           <ChatPanel
             messages={messages}
             onSend={handleSendChat}

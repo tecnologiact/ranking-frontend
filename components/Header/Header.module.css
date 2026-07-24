@@ -3,33 +3,72 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 28px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  background: #EE222B;
+  border-bottom: none;
 }
 
-.left {
+.brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  text-decoration: none;
+  gap: 12px;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.logoCircle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  flex-shrink: 0;
+}
+
+.logoImg {
+  width: 28px;
+  height: 28px;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .title {
-  font-size: 1.1rem;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--color-text);
+  color: #fff;
+  line-height: 1.2;
 }
 
 .subtitle {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.3px;
 }
 
-.badge {
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: rgba(99, 102, 241, 0.18);
-  color: var(--color-primary);
-  letter-spacing: 0.03em;
+.logoutBtn {
+  padding: 8px 18px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logoutBtn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
 }

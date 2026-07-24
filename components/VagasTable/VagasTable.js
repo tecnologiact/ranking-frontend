@@ -1,63 +1,66 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import styles from "./VagasTable.module.css";
-
-function statusBadge(status) {
-  if (!status) return null;
-  const s = status.toLowerCase();
-  if (s.includes("suficiente")) return <span className={styles.badgeSuficientes}>Suficientes</span>;
-  if (s.includes("aten")) return <span className={styles.badgeAtencao}>Atencao</span>;
-  return <span className={styles.badgePoucos}>Poucos</span>;
-}
+import { useState, useMemo } from 'react';
+import styles from './VagasTable.module.css';
 
 export default function VagasTable({ vagas = [], onSelectVaga }) {
-  const [search, setSearch] = useState("");
-  const [localidade, setLocalidade] = useState("");
+  const [search, setSearch] = useState('');
 
-  const localidades = useMemo(() => {
-    const set = new Set();
-    vagas.forEach((v) => { if (v.localidade) set.add(v.localidade); });
-    return Array.from(set).sort();
+  const columns = useMemo(() => {
+    if (!vagas.length) return [];
+    return Object.keys(vagas[0]);
   }, [vagas]);
 
   const filtered = useMemo(() => {
-    return vagas.filter((v) => {
-      const nome = (v.vaga || v.nome || "").toLowerCase();
-      if (search && !nome.includes(search.toLowerCase())) return false;
-      if (localidade && v.localidade !== localidade) return false;
-      return true;
-    });
-  }, [vagas, search, localidade]);
+    if (!search.trim()) return vagas;
+    const term = search.toLowerCase();
+    return vagas.filter((v) =>
+      Object.values(v).some(
+        (val) => val != null && String(val).toLowerCase().includes(term)
+      )
+    );
+  }, [vagas, search]);
 
   return (
     <div className={styles.wrapper}>
-      <div className={styles.filters}>
-        <input className={`input ${styles.search}`} placeholder="Buscar vaga..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className={styles.select} value={localidade} onChange={(e) => setLocalidade(e.target.value)}>
-          <option value="">Todas as localidades</option>
-          {localidades.map((l) => (<option key={l} value={l}>{l}</option>))}
-        </select>
+      <div className={styles.searchBar}>
+        <input
+          type="text"
+          placeholder="Buscar vaga..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={styles.searchInput}
+        />
       </div>
-      <div className={styles.tableWrap}>
-        {filtered.length === 0 ? (
-          <div className={styles.empty}>Nenhuma vaga encontrada</div>
-        ) : (
-          <table>
-            <thead><tr><th>Vaga</th><th>Localidade</th><th>Candidatos</th><th>Status</th></tr></thead>
+
+      {filtered.length === 0 ? (
+        <div className={styles.empty}>Nenhuma vaga encontrada</div>
+      ) : (
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                {columns.map((col) => (
+                  <th key={col}>{col}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {filtered.map((v, i) => (
-                <tr key={v.vaga || v.nome || i} className={styles.row} onClick={() => onSelectVaga?.(v)}>
-                  <td>{v.vaga || v.nome}</td>
-                  <td>{v.localidade || "-"}</td>
-                  <td>{v.candidatos ?? v.total ?? "-"}</td>
-                  <td>{statusBadge(v.status)}</td>
+              {filtered.map((vaga, i) => (
+                <tr
+                  key={i}
+                  className={styles.row}
+                  onClick={() => onSelectVaga?.(vaga)}
+                >
+                  {columns.map((col) => (
+                    <td key={col}>{vaga[col] != null ? String(vaga[col]) : ''}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

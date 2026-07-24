@@ -1,70 +1,119 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import styles from "./ChatPanel.module.css";
-
-const SUGGESTIONS = [
-  "Quais colunas estao disponiveis?",
-  "Priorizar candidatos por experiencia",
-  "Definir peso para formacao",
-  "Mostrar regras atuais",
-];
-
-function renderMarkdown(text) {
-  if (!text) return "";
-  return text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\n- /g, "\n&#8226; ").replace(/\n/g, "<br/>");
-}
+import { useRef, useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import styles from './ChatPanel.module.css';
 
 export default function ChatPanel({ messages = [], onSend, isLoading, regras = [] }) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const bottomRef = useRef(null);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isLoading]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
-  function send(text) {
-    const msg = text || input.trim();
-    if (!msg) return;
-    onSend(msg);
-    setInput("");
+  function handleSend() {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    onSend?.(text);
+    setInput('');
   }
 
-  function handleKey(e) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   }
 
-  const isEmpty = messages.length === 0;
+  function handleStart() {
+    if (!isLoading) onSend?.('Quero iniciar. Faça uma leitura e análise da base que eu anexei na etapa anterior.');
+  }
+
+  const hasMessages = messages.length > 0;
 
   return (
     <div className={styles.panel}>
+      {/* Messages area */}
+      <div className={styles.messages}>
+        {!hasMessages && !isLoading ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}>&#128172;</div>
+            <div className={styles.emptyTitle}>Pronto para configurar o ranking</div>
+            <div className={styles.emptyText}>
+              Clique no botão abaixo para o assistente analisar sua base de candidatos e iniciar a configuração das regras de distribuição.
+            </div>
+            <button
+              className={styles.startBtn}
+              onClick={handleStart}
+              disabled={isLoading}
+            >
+              Iniciar análise da base
+            </button>
+          </div>
+        ) : (
+          <>
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`${styles.bubble} ${m.role === 'user' ? styles.user : styles.assistant}`}
+              >
+                {m.role === 'assistant' ? (
+                  <div className={styles.markdown}>
+                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  m.content
+                )}
+              </div>
+            ))}
+            {isLoading && (
+              <div className={`${styles.bubble} ${styles.assistant}`}>
+                <span className={styles.typing}>
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
+                </span>
+              </div>
+            )}
+          </>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Rules bar */}
       {regras.length > 0 && (
-        <div className={styles.regrasBar}>
+        <div className={styles.rulesBar}>
+          <span className={styles.rulesLabel}>Regras ativas:</span>
           {regras.map((r, i) => (
-            <span key={i} className={styles.regraBadge}>
-              {typeof r === "string" ? r : r.descricao || r.regra || JSON.stringify(r)}
+            <span key={i} className={styles.ruleBadge}>
+              {typeof r === 'string' ? r : r.descricao || r.regra || JSON.stringify(r)}
             </span>
           ))}
         </div>
       )}
-      <div className={styles.messages}>
-        {isEmpty && (
-          <>
-            <div className={styles.welcome}>Ola! Sou seu assistente de ranking. Como posso ajudar?</div>
-            <div className={styles.suggestions}>
-              {SUGGESTIONS.map((s) => (<button key={s} className={styles.suggestion} onClick={() => send(s)}>{s}</button>))}
-            </div>
-          </>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`${styles.bubble} ${m.role === "user" ? styles.user : styles.assistant}`}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content || m.message || m.texto || "") }} />
-        ))}
-        {isLoading && (<div className={styles.typing}><span className={styles.dot} /><span className={styles.dot} /><span className={styles.dot} /></div>)}
-        <div ref={bottomRef} />
-      </div>
-      <div className={styles.inputBar}>
-        <input className={`input ${styles.inputField}`} placeholder="Digite sua mensagem..." value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey} disabled={isLoading} />
-        <button className={`btn btn-primary btn-sm ${styles.sendBtn}`} onClick={() => send()} disabled={isLoading || !input.trim()}>Enviar</button>
-      </div>
+
+      {/* Input bar - only show after conversation started */}
+      {hasMessages && (
+        <div className={styles.inputBar}>
+          <input
+            type="text"
+            className={styles.textInput}
+            placeholder="Digite sua mensagem..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+          />
+          <button
+            className={styles.sendBtn}
+            onClick={handleSend}
+            disabled={!input.trim() || isLoading}
+          >
+            Enviar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
