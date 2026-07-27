@@ -38,7 +38,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={styles.logoArea}>
           <div style={styles.logoCircle}>
-            <img src="/logo-ct.svg" alt="Cia de Talentos" style={{ width: 32, height: 32 }} />
+            <img src="/logo-favicon.png" alt="Cia de Talentos" style={{ width: 32, height: 32 }} />
           </div>
           <span style={styles.logoText}>Cia de Talentos</span>
         </div>

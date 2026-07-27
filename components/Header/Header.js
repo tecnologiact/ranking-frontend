@@ -14,7 +14,7 @@ export default function Header() {
     <header className={styles.header}>
       <Link href="/" className={styles.brand}>
         <div className={styles.logoCircle}>
-          <img src="/logo-ct.svg" alt="CT" className={styles.logoImg} />
+          <img src="/logo-favicon.png" alt="CT" className={styles.logoImg} />
         </div>
         <div className={styles.brandText}>
           <span className={styles.title}>Ranking de Candidatos</span>
