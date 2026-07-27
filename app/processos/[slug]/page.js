@@ -26,6 +26,20 @@ const REGRAS_META_KEYS = [
   "atualizado_em",
 ];
 
+const PCT_KEY_HINT = /pct|percent|cota|proporcao|propor[cç][aã]o|taxa/i;
+
+function formatRegraValor(chave, valor) {
+  if (
+    typeof valor === "number" &&
+    valor >= 0 &&
+    valor <= 1 &&
+    PCT_KEY_HINT.test(chave)
+  ) {
+    return `${(valor * 100).toFixed(0)}%`;
+  }
+  return String(valor);
+}
+
 function flattenRegrasObject(obj) {
   const entries = Object.entries(obj || {}).filter(
     ([k, v]) => !REGRAS_META_KEYS.includes(k) && v !== null && v !== undefined
@@ -35,7 +49,7 @@ function flattenRegrasObject(obj) {
     if (typeof v === "object" && !Array.isArray(v)) {
       result.push(...flattenRegrasObject(v));
     } else {
-      result.push({ descricao: `${k.replace(/_/g, " ")}: ${v}` });
+      result.push({ descricao: `${k.replace(/_/g, " ")}: ${formatRegraValor(k, v)}` });
     }
   }
   return result;
@@ -47,6 +61,38 @@ function normalizeRegras(data) {
   if (Array.isArray(data.regras)) return data.regras;
   if (typeof data === "object") return flattenRegrasObject(data);
   return [];
+}
+
+const CHAT_HISTORY_TTL_MS = 15 * 24 * 60 * 60 * 1000;
+
+function chatHistoryKey(slug, uploadId) {
+  return `chat_history_${slug}_${uploadId}`;
+}
+
+function loadChatHistory(slug, uploadId) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(chatHistoryKey(slug, uploadId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CHAT_HISTORY_TTL_MS) {
+      window.localStorage.removeItem(chatHistoryKey(slug, uploadId));
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveChatHistory(slug, uploadId, { messages, chatId }) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      chatHistoryKey(slug, uploadId),
+      JSON.stringify({ messages, chatId, savedAt: Date.now() })
+    );
+  } catch {}
 }
 
 export default function ProcessoPage({ params }) {
@@ -69,6 +115,7 @@ export default function ProcessoPage({ params }) {
 
   // Ranking
   const [rankingLoading, setRankingLoading] = useState(false);
+  const [cenario, setCenario] = useState("C");
 
   // Vagas from upload
   const [vagas, setVagas] = useState([]);
@@ -96,8 +143,21 @@ export default function ProcessoPage({ params }) {
     obterRegras(slug, uploadId)
       .then((data) => setRegras(normalizeRegras(data)))
       .catch(() => {});
+
+    const historico = loadChatHistory(slug, uploadId);
+    if (historico) {
+      setMessages(historico.messages || []);
+      setChatId(historico.chatId || null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUpload]);
+
+  useEffect(() => {
+    if (!activeUpload || messages.length === 0) return;
+    const uploadId = activeUpload.id || activeUpload.upload_id;
+    saveChatHistory(slug, uploadId, { messages, chatId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, chatId]);
 
   async function handleUpload(file) {
     try {
@@ -119,6 +179,9 @@ export default function ProcessoPage({ params }) {
     try {
       await deletarUpload(uploadId);
       addToast("Upload excluido.", "success");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(chatHistoryKey(slug, uploadId));
+      }
       if (
         activeUpload &&
         (activeUpload.id === uploadId || activeUpload.upload_id === uploadId)
@@ -178,7 +241,7 @@ export default function ProcessoPage({ params }) {
     if (!uploadId) return;
     try {
       setRankingLoading(true);
-      await rodarRanking(slug, uploadId, "C");
+      await rodarRanking(slug, uploadId, cenario);
       addToast("Ranking executado com sucesso!", "success");
       router.push(`/processos/${slug}/resultado/${uploadId}`);
     } catch (err) {
@@ -482,6 +545,48 @@ export default function ProcessoPage({ params }) {
             )}
           </div>
 
+          {/* Scenario selection */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e5e5e7",
+            borderRadius: 10,
+            padding: "16px 18px",
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+              Cenário para executar
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { key: "A", label: "A · Tier-locked" },
+                { key: "B", label: "B · Pool misto" },
+                { key: "C", label: "C · Intermediário" },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => setCenario(opt.key)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 6px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    border: cenario === opt.key ? "1px solid #EE222B" : "1px solid #ddd",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    background: cenario === opt.key ? "#fde8e9" : "#fff",
+                    color: cenario === opt.key ? "#EE222B" : "#666",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: "0.72rem", color: "#999" }}>
+              Escolha 1 cenário por vez para rodar o ranking.
+            </p>
+          </div>
+
           {/* Readiness checklist */}
           <div style={{
             background: "#fff",
@@ -536,7 +641,7 @@ export default function ProcessoPage({ params }) {
               transition: "all 0.2s",
             }}
           >
-            {rankingLoading ? "Gerando cenários..." : messages.length > 0 ? "Executar ranking (3 cenários)" : "Converse com o chat para configurar"}
+            {rankingLoading ? "Gerando ranking..." : messages.length > 0 ? `Executar ranking (cenário ${cenario})` : "Converse com o chat para configurar"}
           </button>
         </div>
 
