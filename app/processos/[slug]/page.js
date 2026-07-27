@@ -15,20 +15,37 @@ import { useToast } from "@/lib/useToast";
 import UploadArea from "@/components/UploadArea/UploadArea";
 import ChatPanel from "@/components/ChatPanel/ChatPanel";
 
-const REGRAS_META_KEYS = ["upload_id", "processo_id", "slug", "id", "created_at", "updated_at"];
+const REGRAS_META_KEYS = [
+  "upload_id",
+  "processo_id",
+  "processo",
+  "slug",
+  "id",
+  "created_at",
+  "updated_at",
+  "atualizado_em",
+];
+
+function flattenRegrasObject(obj) {
+  const entries = Object.entries(obj || {}).filter(
+    ([k, v]) => !REGRAS_META_KEYS.includes(k) && v !== null && v !== undefined
+  );
+  const result = [];
+  for (const [k, v] of entries) {
+    if (typeof v === "object" && !Array.isArray(v)) {
+      result.push(...flattenRegrasObject(v));
+    } else {
+      result.push({ descricao: `${k.replace(/_/g, " ")}: ${v}` });
+    }
+  }
+  return result;
+}
 
 function normalizeRegras(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.regras)) return data.regras;
-  if (typeof data === "object") {
-    const entries = Object.entries(data).filter(
-      ([k, v]) => !REGRAS_META_KEYS.includes(k) && v !== null && v !== undefined
-    );
-    return entries.map(([k, v]) => ({
-      descricao: `${k.replace(/_/g, " ")}: ${v}`,
-    }));
-  }
+  if (typeof data === "object") return flattenRegrasObject(data);
   return [];
 }
 
@@ -504,7 +521,7 @@ export default function ProcessoPage({ params }) {
           {/* Execute CTA - prominent when ready */}
           <button
             onClick={handleRanking}
-            disabled={rankingLoading || regras.length === 0}
+            disabled={rankingLoading || messages.length === 0}
             style={{
               width: "100%",
               padding: "14px 20px",
@@ -512,14 +529,14 @@ export default function ProcessoPage({ params }) {
               fontWeight: 600,
               border: "none",
               borderRadius: 10,
-              cursor: rankingLoading || regras.length === 0 ? "not-allowed" : "pointer",
-              background: regras.length > 0 ? "#EE222B" : "#e0e0e0",
-              color: regras.length > 0 ? "#fff" : "#999",
+              cursor: rankingLoading || messages.length === 0 ? "not-allowed" : "pointer",
+              background: messages.length > 0 ? "#EE222B" : "#e0e0e0",
+              color: messages.length > 0 ? "#fff" : "#999",
               opacity: rankingLoading ? 0.6 : 1,
               transition: "all 0.2s",
             }}
           >
-            {rankingLoading ? "Gerando cenários..." : regras.length > 0 ? "Executar ranking (3 cenários)" : "Configure as regras para executar"}
+            {rankingLoading ? "Gerando cenários..." : messages.length > 0 ? "Executar ranking (3 cenários)" : "Converse com o chat para configurar"}
           </button>
         </div>
 
@@ -536,6 +553,27 @@ export default function ProcessoPage({ params }) {
               regras={regras}
             />
           </div>
+          <button
+            onClick={handleRanking}
+            disabled={rankingLoading || messages.length === 0}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "14px 20px",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 10,
+              cursor: rankingLoading || messages.length === 0 ? "not-allowed" : "pointer",
+              background: messages.length > 0 ? "#EE222B" : "#e0e0e0",
+              color: messages.length > 0 ? "#fff" : "#999",
+              opacity: rankingLoading ? 0.6 : 1,
+              transition: "all 0.2s",
+              flexShrink: 0,
+            }}
+          >
+            {rankingLoading ? "Gerando cenários..." : "Prosseguir e executar ranking →"}
+          </button>
         </div>
       </div>
     </div>
