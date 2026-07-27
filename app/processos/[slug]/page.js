@@ -121,8 +121,15 @@ export default function ProcessoPage({ params }) {
         ...prev,
         { role: "assistant", content: resposta },
       ]);
-      if (res?.regras) setRegras(res.regras);
       if (res?.vagas) setVagas(res.vagas);
+      try {
+        const regrasAtualizadas = await obterRegras(slug, uploadId);
+        setRegras(
+          Array.isArray(regrasAtualizadas)
+            ? regrasAtualizadas
+            : regrasAtualizadas?.regras || []
+        );
+      } catch {}
     } catch (err) {
       addToast(err.message, "error");
       setMessages((prev) => [
@@ -347,9 +354,9 @@ export default function ProcessoPage({ params }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start", height: "calc(100vh - 220px)", minHeight: 480 }}>
         {/* Left: Summary panel */}
-        <div style={{ flex: "0 0 38%", minWidth: 0 }}>
+        <div style={{ flex: "0 0 38%", minWidth: 0, height: "100%", overflowY: "auto", paddingRight: 4 }}>
           <h3 style={{ fontSize: "0.85rem", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
             Resumo da configuração
           </h3>
@@ -505,16 +512,18 @@ export default function ProcessoPage({ params }) {
         </div>
 
         {/* Right: Chat */}
-        <div style={{ flex: "0 0 60%", minWidth: 0 }}>
-          <h3 style={{ fontSize: "0.85rem", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        <div style={{ flex: "0 0 60%", minWidth: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+          <h3 style={{ fontSize: "0.85rem", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
             Chat de configuração
           </h3>
-          <ChatPanel
-            messages={messages}
-            onSend={handleSendChat}
-            isLoading={chatLoading}
-            regras={regras}
-          />
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ChatPanel
+              messages={messages}
+              onSend={handleSendChat}
+              isLoading={chatLoading}
+              regras={regras}
+            />
+          </div>
         </div>
       </div>
     </div>

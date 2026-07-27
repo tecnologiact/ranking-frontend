@@ -6,10 +6,12 @@ import styles from './ChatPanel.module.css';
 
 export default function ChatPanel({ messages = [], onSend, isLoading, regras = [] }) {
   const [input, setInput] = useState('');
-  const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = messagesRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoading]);
 
   function handleSend() {
@@ -35,7 +37,7 @@ export default function ChatPanel({ messages = [], onSend, isLoading, regras = [
   return (
     <div className={styles.panel}>
       {/* Messages area */}
-      <div className={styles.messages}>
+      <div className={styles.messages} ref={messagesRef}>
         {!hasMessages && !isLoading ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>&#128172;</div>
@@ -78,7 +80,6 @@ export default function ChatPanel({ messages = [], onSend, isLoading, regras = [
             )}
           </>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Rules bar */}

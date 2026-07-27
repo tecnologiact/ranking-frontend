@@ -32,3 +32,4 @@ yarn-error.log*
 # ide
 .vscode
 .idea
+.env*
