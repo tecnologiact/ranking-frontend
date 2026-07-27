@@ -553,27 +553,6 @@ export default function ProcessoPage({ params }) {
               regras={regras}
             />
           </div>
-          <button
-            onClick={handleRanking}
-            disabled={rankingLoading || messages.length === 0}
-            style={{
-              width: "100%",
-              marginTop: 12,
-              padding: "14px 20px",
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              border: "none",
-              borderRadius: 10,
-              cursor: rankingLoading || messages.length === 0 ? "not-allowed" : "pointer",
-              background: messages.length > 0 ? "#EE222B" : "#e0e0e0",
-              color: messages.length > 0 ? "#fff" : "#999",
-              opacity: rankingLoading ? 0.6 : 1,
-              transition: "all 0.2s",
-              flexShrink: 0,
-            }}
-          >
-            {rankingLoading ? "Gerando cenários..." : "Prosseguir e executar ranking →"}
-          </button>
         </div>
       </div>
     </div>
