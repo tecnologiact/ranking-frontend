@@ -15,6 +15,23 @@ import { useToast } from "@/lib/useToast";
 import UploadArea from "@/components/UploadArea/UploadArea";
 import ChatPanel from "@/components/ChatPanel/ChatPanel";
 
+const REGRAS_META_KEYS = ["upload_id", "processo_id", "slug", "id", "created_at", "updated_at"];
+
+function normalizeRegras(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.regras)) return data.regras;
+  if (typeof data === "object") {
+    const entries = Object.entries(data).filter(
+      ([k, v]) => !REGRAS_META_KEYS.includes(k) && v !== null && v !== undefined
+    );
+    return entries.map(([k, v]) => ({
+      descricao: `${k.replace(/_/g, " ")}: ${v}`,
+    }));
+  }
+  return [];
+}
+
 export default function ProcessoPage({ params }) {
   const { slug } = params;
   const router = useRouter();
@@ -60,10 +77,7 @@ export default function ProcessoPage({ params }) {
     if (!activeUpload) return;
     const uploadId = activeUpload.id || activeUpload.upload_id;
     obterRegras(slug, uploadId)
-      .then((data) => {
-        const r = Array.isArray(data) ? data : data?.regras || [];
-        setRegras(r);
-      })
+      .then((data) => setRegras(normalizeRegras(data)))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUpload]);
@@ -124,12 +138,10 @@ export default function ProcessoPage({ params }) {
       if (res?.vagas) setVagas(res.vagas);
       try {
         const regrasAtualizadas = await obterRegras(slug, uploadId);
-        setRegras(
-          Array.isArray(regrasAtualizadas)
-            ? regrasAtualizadas
-            : regrasAtualizadas?.regras || []
-        );
-      } catch {}
+        setRegras(normalizeRegras(regrasAtualizadas));
+      } catch (regrasErr) {
+        console.error("Falha ao buscar regras:", regrasErr);
+      }
     } catch (err) {
       addToast(err.message, "error");
       setMessages((prev) => [
