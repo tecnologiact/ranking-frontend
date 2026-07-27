@@ -10,6 +10,7 @@ import {
   obterRegras,
   enviarMensagemChat,
   rodarRanking,
+  baixarRelatorio,
 } from "@/lib/api";
 import { useToast } from "@/lib/useToast";
 import UploadArea from "@/components/UploadArea/UploadArea";
@@ -116,6 +117,8 @@ export default function ProcessoPage({ params }) {
   // Ranking
   const [rankingLoading, setRankingLoading] = useState(false);
   const [cenario, setCenario] = useState("C");
+  const [rankingExecutado, setRankingExecutado] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   // Vagas from upload
   const [vagas, setVagas] = useState([]);
@@ -191,6 +194,7 @@ export default function ProcessoPage({ params }) {
         setChatId(null);
         setRegras([]);
         setVagas([]);
+        setRankingExecutado(false);
       }
       await fetchUploads();
     } catch (err) {
@@ -243,11 +247,33 @@ export default function ProcessoPage({ params }) {
       setRankingLoading(true);
       await rodarRanking(slug, uploadId, cenario);
       addToast("Ranking executado com sucesso!", "success");
-      router.push(`/processos/${slug}/resultado/${uploadId}`);
+      setRankingExecutado(true);
     } catch (err) {
       addToast(err.message, "error");
     } finally {
       setRankingLoading(false);
+    }
+  }
+
+  async function handleExportar() {
+    const uploadId = activeUpload?.id || activeUpload?.upload_id;
+    if (!uploadId) return;
+    try {
+      setExportando(true);
+      const blob = await baixarRelatorio(slug, uploadId, cenario);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio_${slug}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addToast("Relatório exportado!", "success");
+    } catch (err) {
+      addToast(err.message, "error");
+    } finally {
+      setExportando(false);
     }
   }
 
@@ -387,21 +413,26 @@ export default function ProcessoPage({ params }) {
 
   return (
     <div>
-      {/* Step indicator - step 2 active */}
+      {/* Step indicator */}
       <div style={{ display: "flex", gap: 0, marginBottom: 20, fontSize: "0.8rem" }}>
-        {["Upload da planilha", "Configurar regras", "Executar ranking", "Exportar relatório"].map((step, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", alignItems: "center" }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: "50%",
-              background: i <= 1 ? "#EE222B" : "#e0e0e0",
-              color: i <= 1 ? "#fff" : "#888",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 600, fontSize: "0.8rem", flexShrink: 0,
-            }}>{i === 0 ? "✓" : i + 1}</div>
-            <span style={{ marginLeft: 6, color: i <= 1 ? "#333" : "#aaa", whiteSpace: "nowrap" }}>{step}</span>
-            {i < 3 && <div style={{ flex: 1, height: 1, background: i < 1 ? "#EE222B" : "#e0e0e0", margin: "0 8px" }} />}
-          </div>
-        ))}
+        {["Upload da planilha", "Configurar regras", "Executar ranking", "Exportar relatório"].map((step, i) => {
+          const currentStep = rankingExecutado ? 3 : 2;
+          const done = i < currentStep;
+          const active = i === currentStep;
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: done || active ? "#EE222B" : "#e0e0e0",
+                color: done || active ? "#fff" : "#888",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 600, fontSize: "0.8rem", flexShrink: 0,
+              }}>{done ? "✓" : i + 1}</div>
+              <span style={{ marginLeft: 6, color: done || active ? "#333" : "#aaa", whiteSpace: "nowrap" }}>{step}</span>
+              {i < 3 && <div style={{ flex: 1, height: 1, background: i < currentStep ? "#EE222B" : "#e0e0e0", margin: "0 8px" }} />}
+            </div>
+          );
+        })}
       </div>
 
       <div
@@ -429,6 +460,7 @@ export default function ProcessoPage({ params }) {
               setChatId(null);
               setRegras([]);
               setVagas([]);
+              setRankingExecutado(false);
             }}
             style={{
               padding: "8px 16px",
@@ -446,6 +478,57 @@ export default function ProcessoPage({ params }) {
         </div>
       </div>
 
+      {rankingExecutado ? (
+        <div style={{
+          background: "#fff",
+          border: "1px solid #e5e5e7",
+          borderRadius: 12,
+          padding: "48px 24px",
+          textAlign: "center",
+        }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>&#9989;</div>
+          <h2 style={{ fontSize: "1.15rem", marginBottom: 8 }}>
+            Ranking executado com sucesso
+          </h2>
+          <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: 28, maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+            O ranking foi gerado com o cenário {cenario}. Baixe o relatório em Excel com os candidatos distribuídos por vaga.
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={handleExportar}
+              disabled={exportando}
+              style={{
+                padding: "14px 28px",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                border: "none",
+                borderRadius: 10,
+                cursor: exportando ? "not-allowed" : "pointer",
+                background: "#EE222B",
+                color: "#fff",
+                opacity: exportando ? 0.6 : 1,
+              }}
+            >
+              {exportando ? "Exportando..." : "Exportar relatório"}
+            </button>
+            <button
+              onClick={() => setRankingExecutado(false)}
+              style={{
+                padding: "14px 28px",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                border: "1px solid #ccc",
+                borderRadius: 10,
+                cursor: "pointer",
+                background: "#fff",
+                color: "#333",
+              }}
+            >
+              Voltar e ajustar regras
+            </button>
+          </div>
+        </div>
+      ) : (
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", height: "calc(100vh - 220px)", minHeight: 480 }}>
         {/* Left: Summary panel */}
         <div style={{ flex: "0 0 38%", minWidth: 0, height: "100%", overflowY: "auto", paddingRight: 4 }}>
@@ -660,6 +743,7 @@ export default function ProcessoPage({ params }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
