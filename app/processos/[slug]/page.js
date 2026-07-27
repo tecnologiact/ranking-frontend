@@ -96,6 +96,41 @@ function saveChatHistory(slug, uploadId, { messages, chatId }) {
   } catch {}
 }
 
+const DOWNLOAD_HISTORY_TTL_MS = 15 * 24 * 60 * 60 * 1000;
+
+function downloadHistoryKey(slug, uploadId) {
+  return `download_history_${slug}_${uploadId}`;
+}
+
+function loadDownloadHistory(slug, uploadId) {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(downloadHistoryKey(slug, uploadId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : [];
+    const fresh = list.filter(
+      (item) => item?.timestamp && Date.now() - item.timestamp <= DOWNLOAD_HISTORY_TTL_MS
+    );
+    if (fresh.length !== list.length) {
+      window.localStorage.setItem(downloadHistoryKey(slug, uploadId), JSON.stringify(fresh));
+    }
+    return fresh;
+  } catch {
+    return [];
+  }
+}
+
+function addDownloadHistory(slug, uploadId, entry) {
+  if (typeof window === "undefined") return [];
+  const current = loadDownloadHistory(slug, uploadId);
+  const updated = [{ ...entry, timestamp: Date.now() }, ...current].slice(0, 20);
+  try {
+    window.localStorage.setItem(downloadHistoryKey(slug, uploadId), JSON.stringify(updated));
+  } catch {}
+  return updated;
+}
+
 export default function ProcessoPage({ params }) {
   const { slug } = params;
   const router = useRouter();
@@ -119,6 +154,7 @@ export default function ProcessoPage({ params }) {
   const [cenario, setCenario] = useState("C");
   const [rankingExecutado, setRankingExecutado] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [downloadHistory, setDownloadHistory] = useState([]);
 
   // Vagas from upload
   const [vagas, setVagas] = useState([]);
@@ -152,6 +188,7 @@ export default function ProcessoPage({ params }) {
       setMessages(historico.messages || []);
       setChatId(historico.chatId || null);
     }
+    setDownloadHistory(loadDownloadHistory(slug, uploadId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUpload]);
 
@@ -270,6 +307,12 @@ export default function ProcessoPage({ params }) {
       a.remove();
       URL.revokeObjectURL(url);
       addToast("Relatório exportado!", "success");
+      setDownloadHistory(
+        addDownloadHistory(slug, uploadId, {
+          cenario,
+          filename: `relatorio_${slug}.xlsx`,
+        })
+      );
     } catch (err) {
       addToast(err.message, "error");
     } finally {
@@ -528,7 +571,66 @@ export default function ProcessoPage({ params }) {
             </button>
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {rankingExecutado && (
+        <div style={{
+          background: "#fff",
+          border: "1px solid #e5e5e7",
+          borderRadius: 12,
+          padding: "20px 24px",
+          marginTop: 16,
+        }}>
+          <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>
+            Histórico de downloads (guardado por 15 dias)
+          </div>
+          {downloadHistory.length === 0 ? (
+            <p style={{ fontSize: "0.82rem", color: "#aaa" }}>
+              Nenhum download feito ainda neste processo.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {downloadHistory.map((item, i) => (
+                <div key={i} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "#fafafa",
+                  border: "1px solid #eee",
+                  borderRadius: 8,
+                  fontSize: "0.82rem",
+                }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{item.filename}</span>
+                    <span style={{ color: "#999", marginLeft: 10 }}>
+                      cenário {item.cenario} · {new Date(item.timestamp).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleExportar}
+                    disabled={exportando}
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      border: "1px solid #ccc",
+                      borderRadius: 6,
+                      cursor: exportando ? "not-allowed" : "pointer",
+                      background: "#fff",
+                      color: "#333",
+                    }}
+                  >
+                    Baixar novamente
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!rankingExecutado && (
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", height: "calc(100vh - 220px)", minHeight: 480 }}>
         {/* Left: Summary panel */}
         <div style={{ flex: "0 0 38%", minWidth: 0, height: "100%", overflowY: "auto", paddingRight: 4 }}>
