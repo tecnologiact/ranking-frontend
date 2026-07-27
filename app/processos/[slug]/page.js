@@ -50,7 +50,8 @@ function flattenRegrasObject(obj) {
     if (typeof v === "object" && !Array.isArray(v)) {
       result.push(...flattenRegrasObject(v));
     } else {
-      result.push({ descricao: `${k.replace(/_/g, " ")}: ${formatRegraValor(k, v)}` });
+      const label = k.replace(/_/g, " ").replace(/\bpct\b/gi, "").replace(/\s+/g, " ").trim();
+      result.push({ descricao: `${label}: ${formatRegraValor(k, v)}` });
     }
   }
   return result;
@@ -711,7 +712,7 @@ export default function ProcessoPage({ params }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {regras.map((r, i) => {
                   const texto = typeof r === "string" ? r : r.descricao || r.regra || "";
-                  const chave = typeof r === "object" && !r.descricao ? Object.entries(r).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "";
+                  const chave = typeof r === "object" && !r.descricao ? Object.entries(r).map(([k, v]) => `${k.replace(/_/g, " ").replace(/\bpct\b/gi, "").replace(/\s+/g, " ").trim()}: ${formatRegraValor(k, v)}`).join(", ") : "";
                   return (
                     <div key={i} style={{
                       display: "flex", alignItems: "center", gap: 8,
