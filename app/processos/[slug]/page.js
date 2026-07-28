@@ -42,15 +42,21 @@ function formatRegraValor(chave, valor) {
 }
 
 function flattenRegrasObject(obj) {
-  const entries = Object.entries(obj || {}).filter(
-    ([k, v]) => !REGRAS_META_KEYS.includes(k) && v !== null && v !== undefined
-  );
+  const entries = Object.entries(obj || {}).filter(([k, v]) => {
+    if (REGRAS_META_KEYS.includes(k) || v === null || v === undefined) return false;
+    if (Array.isArray(v) && v.length === 0) return false; // empty lists aren't active rules
+    if (v === false) return false; // disabled config flags aren't active rules
+    if (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0) return false;
+    return true;
+  });
   const result = [];
   for (const [k, v] of entries) {
+    const label = k.replace(/_/g, " ").replace(/\bpct\b/gi, "").replace(/\s+/g, " ").trim();
     if (typeof v === "object" && !Array.isArray(v)) {
       result.push(...flattenRegrasObject(v));
+    } else if (Array.isArray(v)) {
+      result.push({ descricao: `${label}: ${v.join(", ")}` });
     } else {
-      const label = k.replace(/_/g, " ").replace(/\bpct\b/gi, "").replace(/\s+/g, " ").trim();
       result.push({ descricao: `${label}: ${formatRegraValor(k, v)}` });
     }
   }
