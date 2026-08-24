@@ -10,6 +10,7 @@ import {
   listarConversas,
   obterConversa,
   blobDaAcao,
+  baixarPlanilhaEnriquecida,
 } from "@/lib/api";
 import { lerPlanilha } from "@/lib/parseExcel";
 import { useToast } from "@/lib/useToast";
@@ -116,6 +117,7 @@ export default function ProcessoPage({ params }) {
   const [colunas, setColunas] = useState([]);
 
   const uploadId = activeUpload?.id || activeUpload?.upload_id || null;
+  const [exportando, setExportando] = useState(false);
 
   async function fetchUploads() {
     try {
@@ -150,6 +152,38 @@ export default function ProcessoPage({ params }) {
       }
     })();
 
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadId]);
+
+  // Reabrir um upload (via lista ou retomada de sessão) não tem o arquivo
+  // local pra parsear — busca a planilha enriquecida do backend pra exibir
+  // a base já na análise inicial, em vez de deixar o viewer vazio.
+  useEffect(() => {
+    if (!uploadId || docs.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await baixarPlanilhaEnriquecida({ processo: slug, upload_id: uploadId }, { baixar: false });
+        const parsed = await lerPlanilha(blob);
+        if (cancelled || !parsed.sheets.length) return;
+        const det = detectarColunas(parsed.sheets);
+        setColunas((prev) => (prev.length ? prev : det.colunas));
+        setDocs([
+          {
+            id: "upload",
+            label: activeUpload?.filename || activeUpload?.arquivo_nome || activeUpload?.nome || "Planilha",
+            kind: "upload",
+            sheets: parsed.sheets,
+          },
+        ]);
+        setActiveDocId("upload");
+      } catch (e) {
+        // Ainda não há planilha enriquecida pra este upload — segue sem viewer.
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -320,6 +354,19 @@ export default function ProcessoPage({ params }) {
     }
   }
 
+  async function handleExportarFinal() {
+    if (!uploadId) return;
+    setExportando(true);
+    try {
+      await baixarPlanilhaEnriquecida({ processo: slug, upload_id: uploadId }, { baixar: true });
+      addToast("Planilha exportada!", "success");
+    } catch (err) {
+      addToast(err.message, "error");
+    } finally {
+      setExportando(false);
+    }
+  }
+
   async function handleDownloadDoc(doc) {
     if (!doc?.downloadAcao) return;
     try {
@@ -436,9 +483,19 @@ export default function ProcessoPage({ params }) {
             {activeUpload.filename || activeUpload.arquivo_nome || activeUpload.nome || uploadId}
           </span>
         </div>
-        <button onClick={resetActive} style={pill("#fff", "#333", "1px solid #ccc")}>
-          Trocar arquivo
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={resetActive} style={linkBtn} title="Voltar e subir outro arquivo">
+            Trocar arquivo
+          </button>
+          <button
+            onClick={handleExportarFinal}
+            disabled={exportando}
+            style={{ ...pill("#EE222B", "#fff"), opacity: exportando ? 0.6 : 1 }}
+            title="Baixar a planilha final com o ranking e as colunas calculadas"
+          >
+            {exportando ? "Exportando..." : "Exportar planilha"}
+          </button>
+        </div>
       </div>
 
       {/* Split */}
@@ -570,6 +627,16 @@ const dropItem = {
   borderRadius: 6,
   cursor: "pointer",
   color: "#333",
+};
+const linkBtn = {
+  padding: "6px 4px",
+  fontSize: "0.8rem",
+  fontWeight: 500,
+  border: "none",
+  background: "transparent",
+  color: "#888",
+  cursor: "pointer",
+  textDecoration: "underline",
 };
 function pill(bg, color, border = "none") {
   return {
