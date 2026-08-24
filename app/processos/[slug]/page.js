@@ -440,13 +440,6 @@ export default function ProcessoPage({ params }) {
     });
   }
 
-  const startMessage = useMemo(() => {
-    if (!colunas.length) {
-      return "Quero iniciar. Faça a leitura e análise da base que anexei e me ajude a configurar as regras.";
-    }
-    return `Quero iniciar. A base tem estas colunas: ${colunas.join(", ")}. Faça a leitura e análise e me ajude a configurar as regras de distribuição.`;
-  }, [colunas]);
-
   const chatSuggestions = useMemo(
     () => [
       { label: "Analisar a base", prompt: "Analise a base que subi e me diga o que dá pra configurar.", fill: false },
@@ -633,8 +626,6 @@ export default function ProcessoPage({ params }) {
               onSend={handleSendChat}
               isLoading={chatLoading}
               suggestions={chatSuggestions}
-              startLabel="Analisar a base e configurar"
-              startMessage={startMessage}
             />
           </div>
         </div>

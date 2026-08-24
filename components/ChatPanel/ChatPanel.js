@@ -10,8 +10,6 @@ export default function ChatPanel({
   isLoading,
   regras = [],
   suggestions = [],
-  startLabel = 'Iniciar análise da base',
-  startMessage = 'Quero iniciar. Faça uma leitura e análise da base que eu anexei na etapa anterior.',
 }) {
   const [input, setInput] = useState('');
   const messagesRef = useRef(null);
@@ -47,10 +45,6 @@ export default function ChatPanel({
     }
   }
 
-  function handleStart() {
-    if (!isLoading) onSend?.(startMessage);
-  }
-
   const hasMessages = messages.length > 0;
 
   const chipStyle = {
@@ -73,17 +67,10 @@ export default function ChatPanel({
         {!hasMessages && !isLoading ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>&#128172;</div>
-            <div className={styles.emptyTitle}>Pronto para configurar o ranking</div>
+            <div className={styles.emptyTitle}>Converse livremente com o assistente</div>
             <div className={styles.emptyText}>
-              Clique no botão abaixo para o assistente analisar sua base de candidatos e iniciar a configuração das regras de distribuição.
+              Digite o que quiser abaixo — pedir uma análise da base, configurar regras, tirar dúvidas sobre uma coluna, o que precisar.
             </div>
-            <button
-              className={styles.startBtn}
-              onClick={handleStart}
-              disabled={isLoading}
-            >
-              {startLabel}
-            </button>
             {suggestions.length > 0 && (
               <div style={{ marginTop: 18, width: '100%' }}>
                 <div style={{ fontSize: '0.72rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
@@ -170,9 +157,8 @@ export default function ChatPanel({
         </div>
       )}
 
-      {/* Input bar - only show after conversation started */}
-      {hasMessages && (
-        <div className={styles.inputBar}>
+      {/* Input bar - sempre visível, sem prompt forçado */}
+      <div className={styles.inputBar}>
           <input
             ref={inputRef}
             type="text"
@@ -183,15 +169,14 @@ export default function ChatPanel({
             onKeyDown={handleKeyDown}
             disabled={isLoading}
           />
-          <button
-            className={styles.sendBtn}
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-          >
-            Enviar
-          </button>
-        </div>
-      )}
+        <button
+          className={styles.sendBtn}
+          onClick={handleSend}
+          disabled={!input.trim() || isLoading}
+        >
+          Enviar
+        </button>
+      </div>
     </div>
   );
 }
