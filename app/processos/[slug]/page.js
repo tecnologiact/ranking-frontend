@@ -13,6 +13,7 @@ import {
   baixarPlanilhaEnriquecida,
 } from "@/lib/api";
 import { lerPlanilha } from "@/lib/parseExcel";
+import { saveDocsCache, loadDocsCache } from "@/lib/docCache";
 import { useToast } from "@/lib/useToast";
 import UploadArea from "@/components/UploadArea/UploadArea";
 import ChatPanel from "@/components/ChatPanel/ChatPanel";
@@ -42,6 +43,28 @@ function loadChatId(slug, uploadId) {
     return p.chatId || null;
   } catch {
     return null;
+  }
+}
+
+// -------- persistência local (gatilho de exportação por upload) --------
+// A exportação só libera depois que o ranking rodou de verdade (o chat
+// devolveu um relatório/planilha enriquecida) — guarda isso por upload pra
+// não perder o estado ao trocar de tela.
+function rankingProntoKey(slug, uploadId) {
+  return `ranking_pronto_${slug}_${uploadId}`;
+}
+function saveRankingPronto(slug, uploadId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(rankingProntoKey(slug, uploadId), "1");
+  } catch {}
+}
+function loadRankingPronto(slug, uploadId) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(rankingProntoKey(slug, uploadId)) === "1";
+  } catch {
+    return false;
   }
 }
 
@@ -119,6 +142,9 @@ export default function ProcessoPage({ params }) {
   const uploadId = activeUpload?.id || activeUpload?.upload_id || null;
   const [exportando, setExportando] = useState(false);
 
+  // Gatilho: exportar só libera depois que o ranking rodou de verdade.
+  const [rankingPronto, setRankingPronto] = useState(false);
+
   async function fetchUploads() {
     try {
       const data = await listarUploads(slug);
@@ -135,9 +161,11 @@ export default function ProcessoPage({ params }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  // Ao ativar um upload: carrega conversas e retoma a última (se houver).
+  // Ao ativar um upload: carrega conversas, retoma a última (se houver) e
+  // restaura o gatilho de exportação salvo pra esse upload.
   useEffect(() => {
     if (!uploadId) return;
+    setRankingPronto(loadRankingPronto(slug, uploadId));
     let cancelled = false;
 
     (async () => {
@@ -158,13 +186,26 @@ export default function ProcessoPage({ params }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadId]);
 
-  // Reabrir um upload (via lista ou retomada de sessão) não tem o arquivo
-  // local pra parsear — busca a planilha enriquecida do backend pra exibir
-  // a base já na análise inicial, em vez de deixar o viewer vazio.
+  // Reabrir um upload (via lista ou retomada de sessão) perde o arquivo/abas
+  // em memória — restaura do cache local (IndexedDB) primeiro; se não achar
+  // (outro navegador/sessão), tenta buscar a planilha enriquecida no backend.
   useEffect(() => {
     if (!uploadId || docs.length > 0) return;
     let cancelled = false;
     (async () => {
+      const cacheKey = `${slug}:${uploadId}`;
+      const cached = await loadDocsCache(cacheKey);
+      if (cancelled) return;
+      if (cached && cached.length) {
+        setDocs(cached);
+        setActiveDocId(cached[0]?.id || null);
+        const base = cached.find((d) => d.kind === "upload") || cached[0];
+        if (base?.sheets?.length) {
+          const det = detectarColunas(base.sheets);
+          setColunas((prev) => (prev.length ? prev : det.colunas));
+        }
+        return;
+      }
       try {
         const blob = await baixarPlanilhaEnriquecida({ processo: slug, upload_id: uploadId }, { baixar: false });
         const parsed = await lerPlanilha(blob);
@@ -189,6 +230,13 @@ export default function ProcessoPage({ params }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadId]);
+
+  // Sempre que as abas do viewer mudam, persiste no cache local — é o que
+  // garante que a planilha continue aberta ao sair e voltar pra tela.
+  useEffect(() => {
+    if (!uploadId || !docs.length) return;
+    saveDocsCache(`${slug}:${uploadId}`, docs);
+  }, [docs, uploadId, slug]);
 
   const abrirConversa = useCallback(
     async (cId, { silencioso = false } = {}) => {
@@ -240,6 +288,7 @@ export default function ProcessoPage({ params }) {
       setMessages([]);
       setChatId(null);
       setCotas([]);
+      setRankingPronto(false);
       addToast("Arquivo enviado com sucesso!", "success");
       setActiveUpload(result);
     } catch (err) {
@@ -274,6 +323,7 @@ export default function ProcessoPage({ params }) {
     setActiveDocId(null);
     setCotas([]);
     setColunas([]);
+    setRankingPronto(false);
   }
 
   // Executa as ações do chat: abre cada arquivo como uma nova aba (sem baixar).
@@ -302,6 +352,9 @@ export default function ProcessoPage({ params }) {
             d.id === docId ? { ...d, loading: false, sheets: parsed.sheets } : d
           )
         );
+        // O chat gerou um relatório/planilha de verdade — libera a exportação.
+        setRankingPronto(true);
+        saveRankingPronto(slug, uploadId);
       } catch (err) {
         setDocs((prev) =>
           prev.map((d) =>
@@ -489,9 +542,17 @@ export default function ProcessoPage({ params }) {
           </button>
           <button
             onClick={handleExportarFinal}
-            disabled={exportando}
-            style={{ ...pill("#EE222B", "#fff"), opacity: exportando ? 0.6 : 1 }}
-            title="Baixar a planilha final com o ranking e as colunas calculadas"
+            disabled={exportando || !rankingPronto}
+            style={{
+              ...pill("#EE222B", "#fff"),
+              opacity: exportando || !rankingPronto ? 0.5 : 1,
+              cursor: !rankingPronto ? "not-allowed" : "pointer",
+            }}
+            title={
+              rankingPronto
+                ? "Baixar a planilha final com o ranking e as colunas calculadas"
+                : "Rode o ranking no chat (ex: \"Rode o ranking e me mostre o resultado\") para liberar a exportação"
+            }
           >
             {exportando ? "Exportando..." : "Exportar planilha"}
           </button>
