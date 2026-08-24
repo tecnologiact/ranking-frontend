@@ -5,7 +5,7 @@ import styles from './UploadArea.module.css';
 
 const ACCEPTED = '.xlsx,.xls,.csv';
 
-export default function UploadArea({ onUpload, isLoading }) {
+export default function UploadArea({ onUpload, isLoading, progress = null }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
@@ -55,6 +55,36 @@ export default function UploadArea({ onUpload, isLoading }) {
           </>
         )}
       </div>
+      {isLoading && (
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              height: 8,
+              background: '#eee',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: progress == null ? '100%' : `${progress}%`,
+                background: '#EE222B',
+                borderRadius: 999,
+                transition: 'width 0.2s ease',
+                animation: progress == null ? 'ct-indeterminate 1.2s infinite' : 'none',
+              }}
+            />
+          </div>
+          <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#888', textAlign: 'center' }}>
+            {progress == null
+              ? 'Enviando arquivo...'
+              : progress < 100
+              ? `Enviando... ${progress}%`
+              : 'Processando no servidor...'}
+          </p>
+        </div>
+      )}
       <button
         className={styles.uploadBtn}
         onClick={handleUpload}
@@ -62,6 +92,13 @@ export default function UploadArea({ onUpload, isLoading }) {
       >
         {isLoading ? <span className={styles.spinner} /> : 'Enviar arquivo'}
       </button>
+      <style jsx>{`
+        @keyframes ct-indeterminate {
+          0% { opacity: 0.5; }
+          50% { opacity: 1; }
+          100% { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   );
 }

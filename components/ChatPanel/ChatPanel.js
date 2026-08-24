@@ -4,9 +4,28 @@ import { useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styles from './ChatPanel.module.css';
 
-export default function ChatPanel({ messages = [], onSend, isLoading, regras = [] }) {
+export default function ChatPanel({
+  messages = [],
+  onSend,
+  isLoading,
+  regras = [],
+  suggestions = [],
+  startLabel = 'Iniciar análise da base',
+  startMessage = 'Quero iniciar. Faça uma leitura e análise da base que eu anexei na etapa anterior.',
+}) {
   const [input, setInput] = useState('');
   const messagesRef = useRef(null);
+  const inputRef = useRef(null);
+
+  function handleSuggestion(s) {
+    if (isLoading) return;
+    if (s.fill) {
+      setInput(s.prompt);
+      inputRef.current?.focus();
+    } else {
+      onSend?.(s.prompt);
+    }
+  }
 
   useEffect(() => {
     const el = messagesRef.current;
@@ -29,10 +48,23 @@ export default function ChatPanel({ messages = [], onSend, isLoading, regras = [
   }
 
   function handleStart() {
-    if (!isLoading) onSend?.('Quero iniciar. Faça uma leitura e análise da base que eu anexei na etapa anterior.');
+    if (!isLoading) onSend?.(startMessage);
   }
 
   const hasMessages = messages.length > 0;
+
+  const chipStyle = {
+    padding: '6px 12px',
+    fontSize: '0.78rem',
+    fontWeight: 500,
+    border: '1px solid #f2c6c8',
+    borderRadius: 999,
+    cursor: isLoading ? 'not-allowed' : 'pointer',
+    background: '#fff',
+    color: '#EE222B',
+    whiteSpace: 'nowrap',
+    opacity: isLoading ? 0.5 : 1,
+  };
 
   return (
     <div className={styles.panel}>
@@ -50,8 +82,28 @@ export default function ChatPanel({ messages = [], onSend, isLoading, regras = [
               onClick={handleStart}
               disabled={isLoading}
             >
-              Iniciar análise da base
+              {startLabel}
             </button>
+            {suggestions.length > 0 && (
+              <div style={{ marginTop: 18, width: '100%' }}>
+                <div style={{ fontSize: '0.72rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                  Ou peça direto ao assistente
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSuggestion(s)}
+                      disabled={isLoading}
+                      title={s.prompt}
+                      style={chipStyle}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -94,10 +146,35 @@ export default function ChatPanel({ messages = [], onSend, isLoading, regras = [
         </div>
       )}
 
+      {/* Suggestion chips row (after conversation started) */}
+      {hasMessages && suggestions.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            overflowX: 'auto',
+            padding: '8px 4px 2px',
+          }}
+        >
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => handleSuggestion(s)}
+              disabled={isLoading}
+              title={s.prompt}
+              style={chipStyle}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Input bar - only show after conversation started */}
       {hasMessages && (
         <div className={styles.inputBar}>
           <input
+            ref={inputRef}
             type="text"
             className={styles.textInput}
             placeholder="Digite sua mensagem..."

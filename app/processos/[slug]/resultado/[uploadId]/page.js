@@ -8,7 +8,6 @@ import {
   aprovarVaga,
   aprovarTudo,
   moverCandidato,
-  rodarRanking,
   baixarRelatorio,
 } from "@/lib/api";
 import { useToast } from "@/lib/useToast";
@@ -112,19 +111,9 @@ export default function ResultadoPage({ params }) {
     }
   }
 
-  async function handleReexecutar() {
-    try {
-      await rodarRanking(slug, uploadId, "C");
-      addToast("Ranking reexecutado!", "success");
-      if (selectedVaga !== null) loadVaga(selectedVaga);
-    } catch (err) {
-      addToast(err.message, "error");
-    }
-  }
-
   async function handleExportar() {
     try {
-      const blob = await baixarRelatorio(slug, uploadId);
+      const blob = await baixarRelatorio({ processo: slug, upload_id: uploadId }, { baixar: false });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -198,9 +187,6 @@ export default function ResultadoPage({ params }) {
           Resultado &mdash;{" "}
           <span style={{ color: "#EE222B" }}>{slug}</span>
         </h1>
-        <button style={btnStyle} onClick={handleReexecutar} title="Rodar o ranking novamente com as regras atuais">
-          Reexecutar ranking
-        </button>
         <button style={btnPrimaryStyle} onClick={handleExportar} title="Baixar planilha Excel com os resultados">
           Exportar relatório
         </button>
