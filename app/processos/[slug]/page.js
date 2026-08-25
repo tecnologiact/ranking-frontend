@@ -450,7 +450,6 @@ export default function ProcessoPage({ params }) {
       { label: "Pesos dos assessments", prompt: "Os pesos dos assessments para a média ponderada devem ser: ____.", fill: true },
       { label: "Rodar e mostrar", prompt: "Rode o ranking e me mostre o resultado como uma aba na planilha.", fill: false },
       { label: "Estudo de flexibilização", prompt: "Faça um estudo de flexibilização: quantas pessoas reprovaram só por pré-requisito, quantas ficaram de fora por uma única regra, e quais regras mais restringem o preenchimento das vagas.", fill: false },
-      { label: "Baixar planilha enriquecida", prompt: "Gere e me mostre a planilha enriquecida com as colunas calculadas.", fill: false },
     ],
     []
   );
