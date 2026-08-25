@@ -134,11 +134,6 @@ export default function SpreadsheetViewer({
               />
             )}
           </div>
-          {activeDoc.kind === "gerado" && activeDoc.downloadAcao && (
-            <button onClick={() => onDownload?.(activeDoc)} style={downloadBtn}>
-              ⬇ Baixar .xlsx
-            </button>
-          )}
         </div>
       )}
 
