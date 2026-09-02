@@ -11,6 +11,8 @@ import {
   obterConversa,
   blobDaAcao,
   baixarPlanilhaEnriquecida,
+  baixarRelatorio,
+  listarCenariosGerados,
 } from "@/lib/api";
 import { lerPlanilha } from "@/lib/parseExcel";
 import { saveDocsCache, loadDocsCache } from "@/lib/docCache";
@@ -188,7 +190,11 @@ export default function ProcessoPage({ params }) {
 
   // Reabrir um upload (via lista ou retomada de sessão) perde o arquivo/abas
   // em memória — restaura do cache local (IndexedDB) primeiro; se não achar
-  // (outro navegador/sessão), tenta buscar a planilha enriquecida no backend.
+  // (outro navegador/sessão - ex: outro analista abrindo o mesmo upload),
+  // reconstrói tudo a partir do que está salvo no servidor: a planilha
+  // original (via planilha-enriquecida) E cada relatório de cenário já
+  // rodado (via cenarios-gerados + relatorio). Sem isso, essas abas só
+  // existiam no navegador de quem as gerou originalmente.
   useEffect(() => {
     if (!uploadId || docs.length > 0) return;
     let cancelled = false;
@@ -206,24 +212,55 @@ export default function ProcessoPage({ params }) {
         }
         return;
       }
+
+      const reconstruidos = [];
+
       try {
         const blob = await baixarPlanilhaEnriquecida({ processo: slug, upload_id: uploadId }, { baixar: false });
         const parsed = await lerPlanilha(blob);
-        if (cancelled || !parsed.sheets.length) return;
-        const det = detectarColunas(parsed.sheets);
-        setColunas((prev) => (prev.length ? prev : det.colunas));
-        setDocs([
-          {
+        if (parsed.sheets.length) {
+          const det = detectarColunas(parsed.sheets);
+          setColunas((prev) => (prev.length ? prev : det.colunas));
+          reconstruidos.push({
             id: "upload",
             label: activeUpload?.filename || activeUpload?.arquivo_nome || activeUpload?.nome || "Planilha",
             kind: "upload",
             sheets: parsed.sheets,
-          },
-        ]);
-        setActiveDocId("upload");
+          });
+        }
       } catch (e) {
-        // Ainda não há planilha enriquecida pra este upload — segue sem viewer.
+        // Ainda não há planilha pra este upload — segue sem essa aba.
       }
+
+      try {
+        const cenarios = await listarCenariosGerados(slug, uploadId);
+        for (const { cenario } of cenarios || []) {
+          const acao = { tipo: "download_relatorio", params: { processo: slug, upload_id: uploadId, cenario } };
+          try {
+            const blob = await baixarRelatorio(acao.params, { baixar: false });
+            const parsed = await lerPlanilha(blob);
+            reconstruidos.push({
+              id: `cenario-${cenario}`,
+              label: rotuloAcao(acao),
+              kind: "gerado",
+              downloadAcao: acao,
+              sheets: parsed.sheets,
+            });
+          } catch (e) {
+            // Esse cenário específico falhou ao reconstruir - segue pros outros.
+          }
+        }
+        if (cenarios?.length) {
+          setRankingPronto(true);
+          saveRankingPronto(slug, uploadId);
+        }
+      } catch (e) {
+        // Sem cenários gerados ainda, ou rota indisponível - segue sem essas abas.
+      }
+
+      if (cancelled || !reconstruidos.length) return;
+      setDocs(reconstruidos);
+      setActiveDocId(reconstruidos[0].id);
     })();
     return () => {
       cancelled = true;
