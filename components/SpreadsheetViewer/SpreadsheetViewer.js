@@ -134,6 +134,15 @@ export default function SpreadsheetViewer({
               />
             )}
           </div>
+          {activeDoc.downloadAcao && onDownload && (
+            <button
+              onClick={() => onDownload(activeDoc)}
+              style={downloadBtn}
+              title="Baixar esta aba (o resultado que você está vendo agora)"
+            >
+              ⬇ Baixar esta aba
+            </button>
+          )}
         </div>
       )}
 
